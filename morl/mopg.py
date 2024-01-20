@@ -87,13 +87,13 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
     episode_objs = deque(maxlen=10)   # for each cost component we care
     episode_obj = np.array([None] * args.num_processes)
 
-    total_num_updates = 2000
+    total_num_updates = 4500
     print(total_num_updates,args.use_linear_lr_decay,args.lr_decay_ratio)
 
     offspring_batch = []
     reward_list = []
 
-    start_iter, final_iter = iteration, 2000
+    start_iter, final_iter = iteration, 4500
     print(start_iter, final_iter)
     for j in range(start_iter, final_iter):
         torch.manual_seed(j)
@@ -142,7 +142,7 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
 
         obj_rms_var = envs.obj_rms.var if envs.obj_rms is not None else None
 
-        if j <=1900:
+        if j <=4000:
             value_loss, action_loss, dist_entropy = agent.update(rollouts, scalarization, obj_rms_var)
         else:
             damping = 1e-2
@@ -179,9 +179,9 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
                         int(total_num_steps / (end - start_time)),
                         end - start_time),'rewards:',np.mean(print_reward[:,0]),np.mean(print_reward[:,1]),\
                             'std:',np.std(print_reward[:,0]),np.std(print_reward[:,1]),scalarization.weights)
-    reward_list = np.array(reward_list)
-    print(reward_list)
-    torch.save(reward_list,'rewardant'+str(task_id)+'.pt')
+            if j>4000:
+                reward_list_array = np.array(reward_list)
+                torch.save(reward_list_array,'rewardhopper'+str(task_id)+'.pt')
     envs.close()   
     
     done_event.wait()
