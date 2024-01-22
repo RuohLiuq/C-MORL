@@ -102,7 +102,7 @@ def get_parser():
         help='use a linear schedule on the learning rate')
     parser.add_argument('--lr-decay-ratio',
         type=float,
-        default=1.0,
+        default=1,
         help='ratio of lr decay from beginning to the end (e.g., 1.0 means lr finally decays to 0, 0.0 means lr stays constant)')
     parser.add_argument(
         '--gamma',

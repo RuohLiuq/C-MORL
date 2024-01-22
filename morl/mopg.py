@@ -28,7 +28,7 @@ def evaluation(args, sample):
     ob_rms = sample.env_params['ob_rms']
     policy = sample.actor_critic
     with torch.no_grad():
-        for eval_id in range(args.eval_num):
+        for eval_id in range(3):
             eval_env.seed(args.seed + eval_id)
             ob = eval_env.reset()
             done = False
@@ -42,7 +42,7 @@ def evaluation(args, sample):
                 if not args.raw:
                     gamma *= args.gamma
     eval_env.close()
-    objs /= args.eval_num
+    objs /= 3
     return objs
 
 '''
@@ -95,6 +95,8 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
 
     start_iter, final_iter = iteration, 4500
     print(start_iter, final_iter)
+    
+    best_reward = 0
     for j in range(start_iter, final_iter):
         torch.manual_seed(j)
         if args.use_linear_lr_decay:
@@ -158,6 +160,10 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
         env_params['obj_rms'] = deepcopy(envs.obj_rms) if envs.obj_rms is not None else None
 
         # evaluate new sample
+        sample = Sample(env_params, deepcopy(actor_critic), deepcopy(agent))
+        objs = evaluation(args, sample)
+        sample.objs = objs
+        offspring_batch.append(sample)
 
 
         #if args.rl_log_interval > 0 and (j + 1) % args.rl_log_interval == 0 and len(episode_rewards) > 1:
@@ -165,7 +171,7 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
             print_reward = np.array(episode_objs)
             total_num_steps = (j + 1) * args.num_steps
             #reward_list.append([np.mean(print_reward[:,0]),np.mean(print_reward[:,1]),np.mean(print_reward[:,2])])
-            reward_list.append([np.mean(print_reward[:,0]),np.mean(print_reward[:,1])])
+            reward_list.append(objs)
             end = time.time()
             # print(
             #     "[RL] Updates {}, num timesteps {}, FPS {}, time {:.2f} seconds"
@@ -179,9 +185,13 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
                         int(total_num_steps / (end - start_time)),
                         end - start_time),'rewards:',np.mean(print_reward[:,0]),np.mean(print_reward[:,1]),\
                             'std:',np.std(print_reward[:,0]),np.std(print_reward[:,1]),scalarization.weights)
+            current_reward = objs@scalarization.weights.numpy().T
+            if current_reward>best_reward:
+                best_reward = current_reward
+                print('best reward:',best_reward, objs)
             if j>4000:
                 reward_list_array = np.array(reward_list)
-                torch.save(reward_list_array,'rewardhopper'+str(task_id)+'.pt')
+                torch.save(reward_list_array,'rewardant'+str(task_id)+'.pt')
     envs.close()   
     
     done_event.wait()
