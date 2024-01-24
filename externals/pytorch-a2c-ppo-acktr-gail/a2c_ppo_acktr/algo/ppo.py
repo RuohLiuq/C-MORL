@@ -153,7 +153,7 @@ class PPO():
             for sample in data_generator:
                 obs_batch, recurrent_hidden_states_batch, actions_batch, \
                    value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
-                        adv_targ, cost_adv_targ = sample
+                        cost_adv_targ, adv_targ = sample
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
@@ -210,7 +210,7 @@ class PPO():
                 r = loss_grad.dot(cost_stepdir) #g^T.H^-1.a
                 s = -cost_loss_grad.dot(cost_stepdir) #a^T.H^-1.a 
 
-                constraint_value = -value_pred_clipped[:,-1]
+                constraint_value = -value_pred_clipped[:,0]
                 #print(constraint_value.mean())
                 #d_k = torch.tensor(d_k).to(constraint_value.dtype).to(constraint_value.device) #???how to calculate
                 d_k = constraint_value*0.99

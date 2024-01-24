@@ -87,23 +87,23 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
     episode_objs = deque(maxlen=10)   # for each cost component we care
     episode_obj = np.array([None] * args.num_processes)
 
-    total_num_updates = 4500
+    total_num_updates = 2000
     print(total_num_updates,args.use_linear_lr_decay,args.lr_decay_ratio)
 
     offspring_batch = []
     reward_list = []
 
-    start_iter, final_iter = iteration, 4500
+    start_iter, final_iter = iteration, 4000
     print(start_iter, final_iter)
     
     best_reward = 0
     for j in range(start_iter, final_iter):
         torch.manual_seed(j)
-        if args.use_linear_lr_decay:
-            # decrease learning rate linearly
-            utils.update_linear_schedule( \
-                agent.optimizer, j * args.lr_decay_ratio, \
-                total_num_updates, args.lr)
+        #if args.use_linear_lr_decay:
+        #    # decrease learning rate linearly
+        #    utils.update_linear_schedule( \
+        #        agent.optimizer, j * args.lr_decay_ratio, \
+        #        total_num_updates, args.lr)
         
         for step in range(args.num_steps):
             # Sample actions
@@ -144,7 +144,7 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
 
         obj_rms_var = envs.obj_rms.var if envs.obj_rms is not None else None
 
-        if j <=4000:
+        if j <=3500:
             value_loss, action_loss, dist_entropy = agent.update(rollouts, scalarization, obj_rms_var)
         else:
             damping = 1e-2
@@ -189,9 +189,9 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
             if current_reward>best_reward:
                 best_reward = current_reward
                 print('best reward:',best_reward, objs)
-            if j>4000:
+            if j>3500:
                 reward_list_array = np.array(reward_list)
-                torch.save(reward_list_array,'rewardant'+str(task_id)+'.pt')
+                torch.save(reward_list_array,'humanoidobj2'+str(task_id)+'.pt')
     envs.close()   
     
     done_event.wait()
