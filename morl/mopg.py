@@ -191,7 +191,7 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
                 print('best reward:',best_reward, objs)
             if j>3500:
                 reward_list_array = np.array(reward_list)
-                torch.save(reward_list_array,'humanoidobj2'+str(task_id)+'.pt')
+                torch.save(reward_list_array,'humanoidobj1'+str(task_id)+'.pt')
     envs.close()   
     
     done_event.wait()
