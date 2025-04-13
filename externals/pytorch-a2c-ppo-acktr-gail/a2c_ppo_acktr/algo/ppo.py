@@ -12,6 +12,8 @@ class PPO():
                  num_mini_batch,
                  value_loss_coef,
                  entropy_coef,
+                 t,
+                 beta,
                  lr=None,
                  eps=None,
                  max_grad_norm=None,
@@ -27,6 +29,9 @@ class PPO():
 
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
+        
+        self.t = t
+        self.beta = beta
 
         self.max_grad_norm = max_grad_norm
         self.use_clipped_value_loss = use_clipped_value_loss
@@ -117,175 +122,172 @@ class PPO():
         return value_loss_epoch, action_loss_epoch, dist_entropy_epoch
 
 
-    def constraint_update(self, rollouts, damping, d_k, max_kl, scalarization = None, obj_var = None, use_fim = True):
+    def constraint_update(self, rollouts, damping, d_k, max_kl, obj, scalarization = None, obj_var = None, use_fim = True):
         op_axis = tuple(range(len(rollouts.returns.shape) - 1))
+        op_axis = tuple(range(len(rollouts.returns.shape) - 1))
+        scalarization = torch.zeros(2) #obj_num
+        cost_scalarization = torch.zeros(2) #obj_num
+        scalarization[obj] = 1
+        cost_scalarization[1-obj] = 1
 
-        # recover the raw returns
+        advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
+
         returns = rollouts.returns * torch.Tensor(np.sqrt(obj_var + 1e-8)) if obj_var is not None else rollouts.returns
         value_preds = rollouts.value_preds * torch.Tensor(np.sqrt(obj_var + 1e-8)) if obj_var is not None else rollouts.value_preds
 
+        advantages = (returns[:-1] * scalarization).sum(axis = -1) - (value_preds[:-1] * scalarization).sum(axis = -1)
+        cost_advantages = (returns[:-1] * cost_scalarization).sum(axis = -1) - (value_preds[:-1] * cost_scalarization).sum(axis = -1)
 
-        ret_1 = (returns[:-1] * torch.tensor([1.,0.])).sum(axis = -1)
-        val_1 = (value_preds[:-1] * torch.tensor([1.,0.])).sum(axis = -1)
-        obj_1_advantages = ret_1 - val_1
-        ret_2 = (returns[:-1] * torch.tensor([0.,1.])).sum(axis = -1)
-        val_2 = (value_preds[:-1] * torch.tensor([0.,1.])).sum(axis = -1)
-        obj_2_advantages = ret_2 - val_2
-                
-
-        obj_1_advantages = (obj_1_advantages - obj_1_advantages.mean(axis=op_axis)) / (
-            obj_1_advantages.std(axis=op_axis) + 1e-5)
-        
-        obj_2_advantages = (obj_2_advantages - obj_2_advantages.mean(axis=op_axis)) / (
-            obj_2_advantages.std(axis=op_axis) + 1e-5)
-        
-        
+        advantages = (advantages - advantages.mean(axis=op_axis)) / (
+        advantages.std(axis=op_axis) + 1e-5)
+        cost_advantages = (cost_advantages - cost_advantages.mean(axis=op_axis)) / (
+        cost_advantages.std(axis=op_axis) + 1e-5)
 
         value_loss_epoch = 0
         action_loss_epoch = 0
         dist_entropy_epoch = 0
+
+        data_generator = rollouts.constraint_feed_forward_generator(
+                advantages, cost_advantages, 1)
+
+        for sample in data_generator:
+            obs_batch, recurrent_hidden_states_batch, actions_batch, \
+                value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
+                    adv_targ, cost_adv_targ = sample
         
-        #for e in range(self.ppo_epoch):
-        for e in range(1):
-            data_generator = rollouts.constraint_feed_forward_generator(
-                    obj_1_advantages, obj_2_advantages, 1)
+            # Reshape to do in a single forward pass for all steps
+            values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
+                obs_batch, recurrent_hidden_states_batch, masks_batch,
+                actions_batch)
 
-            for sample in data_generator:
-                obs_batch, recurrent_hidden_states_batch, actions_batch, \
-                   value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
-                        adv_targ, cost_adv_targ = sample
-
-                # Reshape to do in a single forward pass for all steps
-                values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
-                    obs_batch, recurrent_hidden_states_batch, masks_batch,
-                    actions_batch)
-
-                # update critic
-                if self.use_clipped_value_loss:
-                    value_pred_clipped = value_preds_batch + \
-                        (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
-                    value_losses = (values - return_batch).pow(2)
-                    value_losses_clipped = (
-                        value_pred_clipped - return_batch).pow(2)
-                    value_loss = 0.5 * torch.max(value_losses,
+            
+            # update critic
+            if self.use_clipped_value_loss:
+                value_pred_clipped = value_preds_batch + \
+                    (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
+                value_losses = (values - return_batch).pow(2)
+                value_losses_clipped = (
+                    value_pred_clipped - return_batch).pow(2)
+                value_loss = 0.5 * torch.max(value_losses,
                                                  value_losses_clipped).mean()
-                else:
-                    value_loss = 0.5 * (return_batch - values).pow(2).mean()
+            else:
+                value_loss = 0.5 * (return_batch - values).pow(2).mean()
                     
-                self.critic_optimizer.zero_grad()
-                value_loss.backward()
-                nn.utils.clip_grad_norm_(self.actor_critic.base.critic.parameters(),
-                                         self.max_grad_norm)
-                self.critic_optimizer.step()
-                
-                # update actor
-                ratio = torch.exp(action_log_probs -
-                                  old_action_log_probs_batch)
-                
-                action_loss = -adv_targ * ratio
-                action_loss = action_loss.mean()
-                
-                grads = torch.autograd.grad(action_loss, self.actor_critic.base.actor.parameters(), retain_graph=True)
-                loss_grad = torch.cat([grad.view(-1) for grad in grads]).detach() #g  
-                grad_norm = True
-                if grad_norm == True:
-                    loss_grad = loss_grad/torch.norm(loss_grad)
-                #Fvp = self.Fvp_fim if use_fim else self.Fvp_direct
-                Fvp = self.Fvp_fim
-                stepdir = self.conjugate_gradients(Fvp, obs_batch, damping, -loss_grad, 10) #(H^-1)*g   
-                if grad_norm == True:
-                    stepdir = stepdir/torch.norm(stepdir)
-                    
-                cost_loss = -cost_adv_targ * ratio #?
-                cost_loss = cost_loss.mean()
-                cost_grads = torch.autograd.grad(cost_loss, self.actor_critic.base.actor.parameters(), allow_unused=True, retain_graph=True)
-                cost_loss_grad = torch.cat([grad.view(-1) for grad in cost_grads]).detach() #a
-                cost_loss_grad = cost_loss_grad/torch.norm(cost_loss_grad)
-                cost_stepdir = self.conjugate_gradients(Fvp, obs_batch, damping, -cost_loss_grad, 10) #(H^-1)*a
-                cost_stepdir = cost_stepdir/torch.norm(cost_stepdir)
-                
-                # Define q, r, s
-                p = -cost_loss_grad.dot(stepdir) #a^T.H^-1.g
-                q = -loss_grad.dot(stepdir) #g^T.H^-1.g
-                r = loss_grad.dot(cost_stepdir) #g^T.H^-1.a
-                s = -cost_loss_grad.dot(cost_stepdir) #a^T.H^-1.a 
+            self.critic_optimizer.zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(self.actor_critic.base.critic.parameters(),
+                                        self.max_grad_norm)
+            self.critic_optimizer.step()
 
-                constraint_value = -value_pred_clipped[:,-1]
-                #print(constraint_value.mean())
-                #d_k = torch.tensor(d_k).to(constraint_value.dtype).to(constraint_value.device) #???how to calculate
-                d_k = constraint_value*0.99
-                cc = constraint_value.mean() - d_k.mean() # c would be positive for most part of the training
-                lamda = 2*max_kl
+            # update actor
+            ratio = torch.exp(action_log_probs -
+                              old_action_log_probs_batch)
+                
+            action_loss = -adv_targ * ratio
+            action_loss = action_loss.mean()
+                
+            grads = torch.autograd.grad(action_loss, self.actor_critic.base.actor.parameters(), retain_graph=True)
+            loss_grad = torch.cat([grad.view(-1) for grad in grads]).detach() #g  
+            grad_norm = True
+            if grad_norm == True:
+                loss_grad = loss_grad/torch.norm(loss_grad)
+            #Fvp = self.Fvp_fim if use_fim else self.Fvp_direct
+            Fvp = self.Fvp_fim
+            stepdir = self.conjugate_gradients(Fvp, obs_batch, damping, -loss_grad, 10) #(H^-1)*g   
+            if grad_norm == True:
+                stepdir = stepdir/torch.norm(stepdir)
+
+            cost_loss = -cost_adv_targ * ratio #?
+            cost_loss = cost_loss.mean()
+            cost_grads = torch.autograd.grad(cost_loss, self.actor_critic.base.actor.parameters(), allow_unused=True, retain_graph=True)
+            cost_loss_grad = torch.cat([grad.view(-1) for grad in cost_grads]).detach() #a
+            cost_loss_grad = cost_loss_grad/torch.norm(cost_loss_grad)
+            cost_stepdir = self.conjugate_gradients(Fvp, obs_batch, damping, -cost_loss_grad, 10) #(H^-1)*a
+            cost_stepdir = cost_stepdir/torch.norm(cost_stepdir)
+            
+            # Define q, r, s
+            p = -cost_loss_grad.dot(stepdir) #a^T.H^-1.g
+            q = -loss_grad.dot(stepdir) #g^T.H^-1.g
+            r = loss_grad.dot(cost_stepdir) #g^T.H^-1.a
+            s = -cost_loss_grad.dot(cost_stepdir) #a^T.H^-1.a 
+        
+            constraint_value = values.mean(0)
+            cc = - (constraint_value - d_k) # c would be positive for most part of the training
+            cc = cc[1-obj]
+            lamda = 2*max_kl
+                
+            #find optimal lambda_a and lambda_b
+            A = torch.sqrt((q - (r**2)/s)/(max_kl - (cc**2)/s))
+            B = torch.sqrt(q/max_kl)
+            if cc>0:
+                opt_lam_a = torch.max(r/cc,A)
+                opt_lam_b = torch.max(0*A,torch.min(B,r/cc))
+            else: 
+                opt_lam_b = torch.max(r/cc,B)
+                opt_lam_a = torch.max(0*A,torch.min(A,r/cc))
+            
+            #find values of optimal lambdas 
+            a = ((r**2)/s - q)/(2*opt_lam_a)
+            b = opt_lam_a*((cc**2)/s - max_kl)/2
+            c = - (r*cc)/s
+            opt_f_a = a+b+c
+
+            a = -(q/opt_lam_b + opt_lam_b*max_kl)/2
+            opt_f_b = a   
+            
+            if opt_f_a > opt_f_b:
+                opt_lambda = opt_lam_a
+            else:
+                opt_lambda = opt_lam_b
                     
-                #find optimal lambda_a and lambda_b
-                A = torch.sqrt((q - (r**2)/s)/(max_kl - (cc**2)/s))
-                B = torch.sqrt(q/max_kl)
-                if cc>0:
-                    opt_lam_a = torch.max(r/cc,A)
-                    opt_lam_b = torch.max(0*A,torch.min(B,r/cc))
-                else: 
-                    opt_lam_b = torch.max(r/cc,B)
-                    opt_lam_a = torch.max(0*A,torch.min(A,r/cc))
+            #find optimal nu
+            nu = (opt_lambda*cc - r)/s
+            if nu>0:
+                opt_nu = nu 
+            else:
+                opt_nu = 0
                 
-                #find values of optimal lambdas 
-                a = ((r**2)/s - q)/(2*opt_lam_a)
-                b = opt_lam_a*((cc**2)/s - max_kl)/2
-                c = - (r*cc)/s
-                opt_f_a = a+b+c
-    
-                a = -(q/opt_lam_b + opt_lam_b*max_kl)/2
-                opt_f_b = a   
-                
-                if opt_f_a > opt_f_b:
-                    opt_lambda = opt_lam_a
-                else:
-                    opt_lambda = opt_lam_b
-                        
-                #find optimal nu
-                nu = (opt_lambda*cc - r)/s
-                if nu>0:
-                    opt_nu = nu 
-                else:
-                    opt_nu = 0
-                    
-                """ find optimal step direction """
-                # check for feasibility
-                if ((cc**2)/s - max_kl) > 0 and cc>0:
-                    print('INFEASIBLE !!!!')
-                    #opt_stepdir = -torch.sqrt(2*max_kl/s).unsqueeze(-1)*Fvp(cost_stepdir)
-                    opt_stepdir = torch.sqrt(2*max_kl/s)*Fvp(cost_stepdir, obs_batch, damping,)
-                else: 
-                    #opt_grad = -(loss_grad + opt_nu*cost_loss_grad)/opt_lambda
-                    opt_stepdir = (stepdir - opt_nu*cost_stepdir)/opt_lambda
-                    #opt_stepdir = (stepdir)/opt_lambda
-                    #opt_stepdir = conjugate_gradients(Fvp, -opt_grad, 10)
-                
-                #print(f"{bcolors.OKBLUE} nu by lambda {opt_nu/opt_lambda},\t lambda {1/opt_lambda}{bcolors.ENDC}")
-                """
-                #find the maximum step length
-                xhx = opt_stepdir.dot(Fvp(opt_stepdir))
-                beta_1 = -cc/(cost_loss_grad.dot(opt_stepdir))
-                beta_2 = torch.sqrt(max_kl / xhx)
-                
-                if beta_1 < beta_2:
-                    beta_star = beta_1
-                else: 
-                    beta_star = beta_2
-                
-                # perform line search
-                #fullstep = beta_star*opt_stepdir
-                prev_params = get_flat_params_from(policy_net)
-                fullstep = opt_stepdir
-                expected_improve = -loss_grad.dot(fullstep)
-                success, new_params = line_search(policy_net, get_loss, prev_params, fullstep, expected_improve)
-                set_flat_params_to(policy_net, new_params)
-                """
-                # trying without line search
-                prev_params = self.get_flat_params_from(self.actor_critic.base.actor)
-                new_params = prev_params + opt_stepdir
-                self.set_flat_params_to(self.actor_critic.base.actor, new_params)
+            """ find optimal step direction """
+            # check for feasibility
+            if ((cc**2)/s - max_kl) > 0 and cc>0:
+                print('INFEASIBLE !!!!')
+                #opt_stepdir = -torch.sqrt(2*max_kl/s).unsqueeze(-1)*Fvp(cost_stepdir)
+                opt_stepdir = torch.sqrt(2*max_kl/s)*Fvp(cost_stepdir, obs_batch, damping,)
+            else: 
+                #opt_grad = -(loss_grad + opt_nu*cost_loss_grad)/opt_lambda
+                opt_stepdir = (stepdir - opt_nu*cost_stepdir)/opt_lambda
+                #opt_stepdir = (stepdir)/opt_lambda
+                #opt_stepdir = conjugate_gradients(Fvp, -opt_grad, 10)
+            
+            #print(f"{bcolors.OKBLUE} nu by lambda {opt_nu/opt_lambda},\t lambda {1/opt_lambda}{bcolors.ENDC}")
+            """
+            #find the maximum step length
+            xhx = opt_stepdir.dot(Fvp(opt_stepdir))
+            beta_1 = -cc/(cost_loss_grad.dot(opt_stepdir))
+            beta_2 = torch.sqrt(max_kl / xhx)
+            
+            if beta_1 < beta_2:
+                beta_star = beta_1
+            else: 
+                beta_star = beta_2
+            
+            # perform line search
+            #fullstep = beta_star*opt_stepdir
+            prev_params = get_flat_params_from(policy_net)
+            fullstep = opt_stepdir
+            expected_improve = -loss_grad.dot(fullstep)
+            success, new_params = line_search(policy_net, get_loss, prev_params, fullstep, expected_improve)
+            set_flat_params_to(policy_net, new_params)
+            """
+            # trying without line search
+            prev_params = self.get_flat_params_from(self.actor_critic.base.actor)
+            new_params = prev_params + opt_stepdir
+            self.set_flat_params_to(self.actor_critic.base.actor, new_params)
 
         return value_loss_epoch, action_loss_epoch, dist_entropy_epoch
+
+
+
     
     def conjugate_gradients(self, Avp_f, states, damping, b, nsteps, rdotr_tol=1e-10):
         x = torch.zeros(b.size(), device=b.device)
@@ -395,4 +397,90 @@ class PPO():
 
         flat_params = torch.cat(params)
         return flat_params
-            
+    
+    def ipo_update(self, rollouts, obj, obj_num, obj_var = None):
+        op_axis = tuple(range(len(rollouts.returns.shape) - 1))
+        scalarization = torch.zeros(obj_num)
+        scalarization[obj] = 1
+
+        advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
+
+        returns = rollouts.returns * torch.Tensor(np.sqrt(obj_var + 1e-8)) if obj_var is not None else rollouts.returns
+        value_preds = rollouts.value_preds * torch.Tensor(np.sqrt(obj_var + 1e-8)) if obj_var is not None else rollouts.value_preds
+
+        advantages = (returns[:-1] * scalarization).sum(axis = -1) - (value_preds[:-1] * scalarization).sum(axis = -1)
+
+        advantages = (advantages - advantages.mean(axis=op_axis)) / (
+        advantages.std(axis=op_axis) + 1e-5)
+
+        value_loss_epoch = 0
+        action_loss_epoch = 0
+        dist_entropy_epoch = 0
+        
+        for e in range(self.ppo_epoch):
+            if self.actor_critic.is_recurrent:
+                data_generator = rollouts.recurrent_generator(
+                    advantages, self.num_mini_batch)
+            else:
+                data_generator = rollouts.feed_forward_generator(
+                    advantages, self.num_mini_batch)
+
+            for sample in data_generator:
+                obs_batch, recurrent_hidden_states_batch, actions_batch, \
+                   value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, \
+                        adv_targ = sample
+
+                # Reshape to do in a single forward pass for all steps
+                values, action_log_probs, dist_entropy, _ = self.actor_critic.evaluate_actions(
+                    obs_batch, recurrent_hidden_states_batch, masks_batch,
+                    actions_batch)
+
+                ratio = torch.exp(action_log_probs -
+                                  old_action_log_probs_batch)
+                surr1 = ratio * adv_targ
+                surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
+                                    1.0 + self.clip_param) * adv_targ
+                action_loss_clip = -torch.min(surr1, surr2).mean()
+
+                cost = torch.clamp(ratio, 1.0 - self.clip_param,
+                                    1.0 + self.clip_param) * return_batch.mean(0)
+                epsilon = self.beta * return_batch.mean(0)
+                hat_cost = torch.clamp(epsilon - cost, max=-0.001)
+                hat_cost = torch.cat((hat_cost[:obj], hat_cost[obj+1:]))
+                log_hat_cost = torch.log(-hat_cost)
+                
+                ipo_loss = -log_hat_cost.mean()/self.t
+                
+                
+                action_loss = action_loss_clip + ipo_loss
+
+                if self.use_clipped_value_loss:
+                    value_pred_clipped = value_preds_batch + \
+                        (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
+                    #print(value_pred_clipped[:,-1].mean())
+                    value_losses = (values - return_batch).pow(2)
+                    value_losses_clipped = (
+                        value_pred_clipped - return_batch).pow(2)
+                    value_loss = 0.5 * torch.max(value_losses,
+                                                 value_losses_clipped).mean()
+                else:
+                    value_loss = 0.5 * (return_batch - values).pow(2).mean()
+
+                self.optimizer.zero_grad()
+                (value_loss * self.value_loss_coef + action_loss -
+                 dist_entropy * self.entropy_coef).backward()
+                nn.utils.clip_grad_norm_(self.actor_critic.parameters(),
+                                         self.max_grad_norm)
+                self.optimizer.step()
+
+                value_loss_epoch += value_loss.item()
+                action_loss_epoch += action_loss.item()
+                dist_entropy_epoch += dist_entropy.item()
+
+        num_updates = self.ppo_epoch * self.num_mini_batch
+
+        value_loss_epoch /= num_updates
+        action_loss_epoch /= num_updates
+        dist_entropy_epoch /= num_updates
+
+        return value_loss_epoch, action_loss_epoch, dist_entropy_epoch

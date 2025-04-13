@@ -1,0 +1,67 @@
+[96m 
+------------------------------- Initialization Stage ------------------------------- [0m
+Number of Pareto optimal solutions: 28
+[96m Selected Tasks: [0m
+[96m objs = [ 78.56972504 459.64205321] [0m
+[96m objs = [465.56378443  25.8480335 ] [0m
+[96m objs = [111.49617047 380.03853642] [0m
+[96m objs = [191.83630239 220.57728772] [0m
+[96m objs = [328.30550124 116.3890824 ] [0m
+Hyper Volume: 197207.9906, Expected Utility: 364.3482, Sparsity: 2386.3878
+[96m 
+------------------------------- Extension Stage ------------------------------- [0m
+Starting the extension from iteration 0 to 20.
+Number of Pareto optimal solutions: 25
+[96m Selected Tasks: [0m
+[96m objs = [ 94.79341687 465.70599784] [0m
+[96m objs = [476.21185185  28.75899231] [0m
+[96m objs = [222.00461452 335.38218946] [0m
+[96m objs = [326.539616  172.1099494] [0m
+[96m objs = [342.63905428 171.05903362] [0m
+Hyper Volume: 236346.5712, Expected Utility: 376.3565, Sparsity: 2264.5224
+Starting the extension from iteration 20 to 40.
+Number of Pareto optimal solutions: 37
+[96m Selected Tasks: [0m
+[96m objs = [333.08742221 229.43480833] [0m
+[96m objs = [263.8438276  300.91528011] [0m
+[96m objs = [431.07269155 121.59642575] [0m
+[96m objs = [352.90224747 179.66905777] [0m
+[96m objs = [469.66226262  77.65297317] [0m
+Hyper Volume: 249461.6594, Expected Utility: 379.1063, Sparsity: 803.5064
+Starting the extension from iteration 40 to 60.
+Number of Pareto optimal solutions: 39
+[96m Selected Tasks: [0m
+[96m objs = [475.18697592 102.01024709] [0m
+[96m objs = [292.07194733 311.25883976] [0m
+[96m objs = [409.67037585 181.43077254] [0m
+[96m objs = [342.99510963 236.71979536] [0m
+[96m objs = [363.14764206 194.0530932 ] [0m
+Hyper Volume: 260324.9780, Expected Utility: 383.6462, Sparsity: 547.8319
+Starting the extension from iteration 60 to 80.
+Number of Pareto optimal solutions: 34
+[96m Selected Tasks: [0m
+[96m objs = [414.02400904 226.55308476] [0m
+[96m objs = [277.72531708 358.21051404] [0m
+[96m objs = [352.33980165 237.24205489] [0m
+[96m objs = [202.80666057 362.68391995] [0m
+[96m objs = [297.3678596  327.08175228] [0m
+Hyper Volume: 267358.5928, Expected Utility: 386.0124, Sparsity: 773.5583
+Starting the extension from iteration 80 to 100.
+Number of Pareto optimal solutions: 40
+[96m Selected Tasks: [0m
+[96m objs = [379.86093396 260.15767014] [0m
+[96m objs = [218.44868197 370.11695014] [0m
+[96m objs = [339.87708423 287.67377735] [0m
+[96m objs = [271.36106247 368.05334915] [0m
+[96m objs = [192.71854388 372.2909073 ] [0m
+Hyper Volume: 273160.1181, Expected Utility: 388.4414, Sparsity: 538.3934
+Starting the extension from iteration 100 to 120.
+Number of Pareto optimal solutions: 41
+[96m Selected Tasks: [0m
+[96m objs = [224.59391039 371.74260184] [0m
+[96m objs = [300.06947039 371.19038512] [0m
+[96m objs = [214.57447494 384.05311111] [0m
+[96m objs = [191.1712266  408.12666204] [0m
+[96m objs = [372.88521984 276.63176062] [0m
+Hyper Volume: 276706.8134, Expected Utility: 390.2277, Sparsity: 539.6001
+Starting the extension from iteration 120 to 140.

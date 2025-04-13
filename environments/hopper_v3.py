@@ -26,7 +26,7 @@ class HopperEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         done = not((s[1] > 0.4) and abs(s[2]) < np.deg2rad(90) and abs(s[3]) < np.deg2rad(90) and abs(s[4]) < np.deg2rad(90) and abs(s[5]) < np.deg2rad(90))
 
         ob = self._get_obs()
-        return ob, reward, done, {'obj': np.array([reward_run, reward_jump, reward_energy])}
+        return ob, 0, done, {'obj': np.array([reward_run, reward_jump, reward_energy])}
 
     def _get_obs(self):
         return np.concatenate([

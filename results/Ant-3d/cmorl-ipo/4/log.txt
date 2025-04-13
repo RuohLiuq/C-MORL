@@ -1,0 +1,48 @@
+[96m 
+------------------------------- Initialization Stage ------------------------------- [0m
+Sample batch size exceeded policy buffer size 100. Performing sampling.
+Number of Pareto optimal solutions: 100
+[96m Selected Tasks: [0m
+[96m objs = [ 87.12453818 150.24666222  87.20930747] [0m
+[96m objs = [349.45782347  82.40958696  59.39932032] [0m
+[96m objs = [113.51226017 443.4529746   45.16376751] [0m
+[96m objs = [97.14031966 98.67949786 98.78204756] [0m
+[96m objs = [456.12806334 108.37527738  53.34808862] [0m
+[96m objs = [409.80721959 105.93424796  56.64608185] [0m
+Hyper Volume: 35185407.3423, Expected Utility: 265.1906, Sparsity: 76.4970
+[96m 
+------------------------------- Extension Stage ------------------------------- [0m
+Starting the extension from iteration 0 to 20.
+Sample batch size exceeded policy buffer size 100. Performing sampling.
+Number of Pareto optimal solutions: 100
+[96m Selected Tasks: [0m
+[96m objs = [ 88.37725028 190.68813526  78.87305618] [0m
+[96m objs = [357.15529123  80.89650357  58.4320173 ] [0m
+[96m objs = [150.38398587 436.57261595  45.00277857] [0m
+[96m objs = [456.17934342 101.9691791   53.88895625] [0m
+[96m objs = [98.25848581 98.74341062 98.80538482] [0m
+[96m objs = [114.92144792 132.96069754  91.74688244] [0m
+Hyper Volume: 37462624.2447, Expected Utility: 268.3288, Sparsity: 59.6660
+Starting the extension from iteration 20 to 40.
+Sample batch size exceeded policy buffer size 100. Performing sampling.
+Number of Pareto optimal solutions: 100
+[96m Selected Tasks: [0m
+[96m objs = [ 84.73675807 177.44547225  87.31640347] [0m
+[96m objs = [368.23798011  82.95661167  57.95073625] [0m
+[96m objs = [168.45505482 432.53404589  43.67028744] [0m
+[96m objs = [464.40976583 106.92969421  53.01869678] [0m
+[96m objs = [252.96633944 100.66876011  71.67253919] [0m
+[96m objs = [313.5487985  141.69563261  70.96802144] [0m
+Hyper Volume: 38868936.5849, Expected Utility: 270.5304, Sparsity: 96.1292
+Starting the extension from iteration 40 to 54.
+Sample batch size exceeded policy buffer size 100. Performing sampling.
+Number of Pareto optimal solutions: 100
+[96m Selected Tasks: [0m
+[96m objs = [ 89.14869294 175.46759397  91.45037836] [0m
+[96m objs = [144.15356953 181.42632206  85.40357699] [0m
+[96m objs = [233.50332607 145.16736304  78.19837058] [0m
+[96m objs = [268.80886972 105.53195157  71.04276469] [0m
+[96m objs = [192.41030919 420.00511038  44.16723154] [0m
+[96m objs = [234.55183332 140.19620922  79.1591896 ] [0m
+Hyper Volume: 39780182.5516, Expected Utility: 270.6088, Sparsity: 83.7793
+total time: 6182.567825555801

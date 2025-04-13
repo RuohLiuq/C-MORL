@@ -13,6 +13,11 @@ from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
 from baselines.common.vec_env.vec_normalize import \
     VecNormalize as VecNormalize_
 
+import mo_gymnasium as mo_gym
+
+from environments.building.env_building import BuildingEnv_3d, BuildingEnv_9d
+from environments.building.utils_building import ParameterGenerator
+
 try:
     import dm_control2gym
 except ImportError:
@@ -29,13 +34,23 @@ except ImportError:
     pass
 
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets, env_params=None):
+def make_env(env_id, seed, rank, log_dir, allow_early_resets, cost_objective, env_params=None):
     def _thunk():
         if env_id.startswith("dm"):
             _, domain, task = env_id.split('.')
             env = dm_control2gym.make(domain_name=domain, task_name=task)
         else:
-            env = gym.make(env_id)
+            if env_id == 'building_3d':
+                params = ParameterGenerator(Building='OfficeLarge', Weather='Warm_Marine', Location='ElPaso')
+                env = BuildingEnv_3d(params)
+            elif env_id == 'building_9d':
+                params = ParameterGenerator(Building='OfficeLarge', Weather='Warm_Marine', Location='ElPaso')
+                env = BuildingEnv_9d(params)
+            else:
+                if cost_objective:
+                    env = mo_gym.make(env_id, cost_objective=True, max_episode_steps=500)
+                else:
+                    env = mo_gym.make(env_id, max_episode_steps=500)
             if env_params:
                 env.set_params(env_params)
 
@@ -44,12 +59,11 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets, env_params=None):
         if is_atari:
             env = make_atari(env_id)
 
-        env.seed(seed + rank)
+        env.seed = seed + rank
 
         obs_shape = env.observation_space.shape
 
-        if str(env.__class__.__name__).find('TimeLimit') >= 0:
-            env = TimeLimitMask(env)
+        env = TimeLimitMask(env, reset_seed = seed + rank)
 
         if log_dir is not None:
             env = bench.Monitor(
@@ -88,12 +102,13 @@ def make_vec_envs(env_name,
                   log_dir,
                   device,
                   allow_early_resets,
+                  cost_objective=False,
                   num_frame_stack=None,
                   env_params=None,
                   obj_rms=False,
                   ob_rms=False):
     envs = [
-        make_env(env_name, seed, i, log_dir, allow_early_resets, env_params)
+        make_env(env_name, seed, i, log_dir, allow_early_resets, cost_objective, env_params)
         for i in range(num_processes)
     ]
 
@@ -120,15 +135,21 @@ def make_vec_envs(env_name,
 
 # Checks whether done was caused my timit limits or not
 class TimeLimitMask(gym.Wrapper):
+    def __init__(self, env=None, reset_seed=None):
+        super().__init__(env)  # 初始化父类
+        self.seed = reset_seed
+
     def step(self, action):
-        obs, rew, done, info = self.env.step(action)
+        obs, rew, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
         if done and self.env._max_episode_steps == self.env._elapsed_steps:
             info['bad_transition'] = True
-
+        info['obj'] = rew
+        rew = 0.
         return obs, rew, done, info
 
     def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+        return self.env.reset(seed=self.seed, **kwargs)[0]
 
 
 # Can be used to test recurrent policies for Reacher-v2
@@ -260,3 +281,5 @@ class VecPyTorchFrameStack(VecEnvWrapper):
 
     def close(self):
         self.venv.close()
+
+

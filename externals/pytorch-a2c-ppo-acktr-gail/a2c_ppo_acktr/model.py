@@ -6,7 +6,9 @@ import torch.nn.functional as F
 from a2c_ppo_acktr.distributions import Bernoulli, Categorical, DiagGaussian
 from a2c_ppo_acktr.utils import init
 
-from torch.distributions import Beta, Normal
+from torch.distributions import Categorical, Normal
+
+from torch.distributions.kl import kl_divergence
 
 
 class Flatten(nn.Module):
@@ -22,8 +24,15 @@ class Policy(nn.Module):
 
         base = MOMLPBase
         base_kwargs['obj_num'] = obj_num
-        num_outputs = action_space.shape[0]
-        self.base = base(obs_shape[0], num_outputs, **base_kwargs)
+
+        if action_space.__class__.__name__ == "Discrete":
+            self.is_discrete = True
+            num_outputs = action_space.n
+        elif action_space.__class__.__name__ == "Box":
+            self.is_discrete = False
+            num_outputs = action_space.shape[0]
+
+        self.base = base(obs_shape[0], num_outputs, self.is_discrete, **base_kwargs)
         
 
 
@@ -41,8 +50,13 @@ class Policy(nn.Module):
 
     def act(self, inputs, rnn_hxs, masks, deterministic=False):
         value, actor_mean, action_logstd = self.base(inputs, rnn_hxs, masks) 
-        std = torch.exp(action_logstd)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-        dist = Normal(actor_mean, std)  # Get the Gaussian distribution
+
+        if self.is_discrete:
+            dist = Categorical(logits=actor_mean)
+
+        else:
+            std = torch.exp(action_logstd)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
+            dist = Normal(actor_mean, std)  # Get the Gaussian distribution
 
         if deterministic:
             action = dist.mode()
@@ -59,8 +73,12 @@ class Policy(nn.Module):
 
     def evaluate_actions(self, inputs, rnn_hxs, masks, action):
         value, actor_mean, action_logstd = self.base(inputs, rnn_hxs, masks)
-        std = torch.exp(action_logstd)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
-        dist = Normal(actor_mean, std)  # Get the Gaussian distribution
+        if self.is_discrete:
+            dist = Categorical(logits=actor_mean)
+
+        else:
+            std = torch.exp(action_logstd)  # The reason we train the 'log_std' is to ensure std=exp(log_std)>0
+            dist = Normal(actor_mean, std)  # Get the Gaussian distribution
         action_log_probs = dist.log_probs(action)
         dist_entropy = dist.entropy().mean()
 
@@ -69,7 +87,7 @@ class Policy(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, num_inputs, num_outputs, recurrent=False, hidden_size=64, layernorm=True, obj_num=2):
+    def __init__(self, num_inputs, num_outputs, is_discrete, recurrent=False, hidden_size=64, layernorm=True, obj_num=2):
         super(Actor, self).__init__()
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
                                constant_(x, 0), np.sqrt(2))
@@ -78,6 +96,7 @@ class Actor(nn.Module):
         self.actor_fc2 = nn.Linear(hidden_size, hidden_size)
         self.actor_fc3 = nn.Linear(hidden_size, num_outputs)
         self.actor_logstd = nn.Parameter(torch.zeros(1, num_outputs)) #???
+        self.is_discrete = is_discrete
 
 
         if layernorm:
@@ -93,18 +112,24 @@ class Actor(nn.Module):
     def forward(self, states):
         x = torch.tanh(self.actor_fc1(states))
         x = torch.tanh(self.actor_fc2(x))
-        action_mean = self.actor_fc3(x)
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        return action_mean, action_logstd
+
+        if self.is_discrete:
+            logits = self.actor_fc3(x)
+            return logits, None
+        else:
+            action_mean = self.actor_fc3(x)
+            action_logstd = self.actor_logstd.expand_as(action_mean)
+            return action_mean, action_logstd
     
     def get_kl(self, states):
         mean1, log_std1 = self.forward(states)
         std1 = torch.exp(log_std1)
-        mean0 = mean1.detach()
-        log_std0 = log_std1.detach()
-        std0 = std1.detach()
-        #pdb.set_trace()
-        kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
+        dist_1 = Normal(mean1, std1)  # Get the Gaussian distribution
+        mean2 = mean1.detach()
+        log_std2 = log_std1.detach()
+        std2 = std1.detach()
+        dist_2 = Normal(mean2, std2)
+        mean_kl = torch.mean(kl_divergence(dist_2, dist_1))
         return kl.sum(1, keepdim=True)
 
     def get_fim(self, states):
@@ -151,9 +176,9 @@ class Critic(nn.Module):
         return critic_value
 
 class MOMLPBase(nn.Module):
-    def __init__(self, num_inputs, num_outputs, recurrent=False, hidden_size=64, layernorm=True, obj_num=2):
+    def __init__(self, num_inputs, num_outputs, is_discrete, recurrent=False, hidden_size=64, layernorm=True, obj_num=2):
         super(MOMLPBase, self).__init__()
-        self.actor = Actor(num_inputs, num_outputs, recurrent=False, hidden_size=64, layernorm=True, obj_num=obj_num)
+        self.actor = Actor(num_inputs, num_outputs, is_discrete, recurrent=False, hidden_size=64, layernorm=True, obj_num=obj_num)
         self.critic = Critic(num_inputs, num_outputs, recurrent=False, hidden_size=64, layernorm=True, obj_num=obj_num)
         self._hidden_size = hidden_size
         self._recurrent = recurrent
