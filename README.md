@@ -1,7 +1,7 @@
 # Efficient Discovery of Pareto Front for Multi-Objective Reinforcement Learning
 
-Ruohong Liu*, Yuxin Pan*, Linjie Xu, Lei Song, Jiang Bian, Pengcheng You, Yize Chen  
-The Twelfth International Conference on Learning Representations (ICLR 2025)  
+Ruohong Liu, Yuxin Pan, Linjie Xu, Lei Song, Jiang Bian, Pengcheng You, Yize Chen  
+The Thirteenth International Conference on Learning Representations (ICLR 2025)  
 
 In this [paper](https://openreview.net/forum?id=fDGPIuCdGi), we propose a two-stage Pareto front discovery algorithm called Constrained
 MORL (C-MORL), which serves as a seamless bridge between constrained policy optimization and MORL. Concretely, a set of policies aretrained in parallel in the initialization stage, with each optimized towards its individual preference over the multiple objectives. Then, to fill the remaining vacancies in the Pareto front, the constrained optimization steps are employed to maximize one objective while constraining the other objectives to exceed a predefined threshold.
