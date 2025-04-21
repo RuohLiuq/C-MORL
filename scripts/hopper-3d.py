@@ -7,8 +7,8 @@ parser.add_argument('--cmorl-ipo', default=False, action='store_true')
 parser.add_argument('--cmorl-cpo', default=False, action='store_true')
 parser.add_argument('--random', default=False, action='store_true')
 parser.add_argument('--num-seeds', type=int, default=6)
-parser.add_argument('--save-dir', type=str, default='./results/Building-3d')
-parser.add_argument('--ref-point', type=float, nargs='+', default=[0., 0., 0.])
+parser.add_argument('--save-dir', type=str, default='./results/Hopper-3d')
+parser.add_argument('--ref-point', type=float, nargs='+', default=[-100., -100., -100.])
 args = parser.parse_args()
 
 random.seed(2000)
@@ -23,22 +23,23 @@ for i in range(args.num_seeds):
     
     if test_cmorl_ipo:
         cmd = f'python morl/run.py '\
-            f'--env-name building_3d --obj-num 3 '\
+            f'--env-name mo-hopper-v4 --obj-num 3 '\
             f'--seed {seed} '\
             f'--num-time-steps 2000000 '\
             f'--num-init-steps 1500000 '\
-            f'--ref-point 0 0 0 '\
-            f'--min-weight 0.0 '\
-            f'--max-weight 1.0 '\
-            f'--delta-weight 0.5 '\
+            f'--ref-point -100 -100 -100 '\
+            f'--min-weight 0.2 '\
+            f'--max-weight 0.8 '\
+            f'--delta-weight 0.3 '\
             f'--eval-delta-weight 0.1 '\
             f'--eval-num 10 '\
-            f'--gamma 1.0 '\
+            f'--eval-gamma 0.99 '\
             f'--num-select 6 '\
             f'--update-method cmorl-ipo '\
             f'--obj-rms '\
             f'--ob-rms '\
             f'--raw '\
+            f'--cost-objective '\
             f'--save-dir {save_dir}/cmorl-ipo/{i}/'
         
         print("Running CMORL-IPO")
@@ -49,20 +50,21 @@ for i in range(args.num_seeds):
 
     if test_cmorl_cpo:
         cmd = f'python morl/run.py '\
-            f'--env-name building_3d --obj-num 3 '\
+            f'--env-name mo-hopper-v4 --obj-num 3 '\
             f'--seed {seed} '\
             f'--num-time-steps 2000000 '\
-            f'--num-init-steps 1500000 '\
-            f'--ref-point 0 0 0 '\
+            f'--num-init-steps 1000000 '\
+            f'--ref-point -100 -100 -100 '\
             f'--min-weight 0.0 '\
             f'--max-weight 1.0 '\
             f'--delta-weight 0.25 '\
             f'--eval-num 1 '\
-            f'--num-select 9 '\
+            f'--num-select 6 '\
             f'--update-method cmorl-cpo '\
             f'--obj-rms '\
             f'--ob-rms '\
             f'--raw '\
+            f'--cost-objective '\
             f'--save-dir {save_dir}/cmorl-cpo/{i}/'
         
         print("Running CMORL-CPO")

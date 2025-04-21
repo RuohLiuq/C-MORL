@@ -110,9 +110,8 @@ def compute_eu(ep_objs_batch, preferences):
 
 # compute the sparsity of a given pareto front
 def compute_sparsity(ep_objs_batch):
-    if ep_objs_batch.shape[1] < 2:
+    if ep_objs_batch.shape[0] < 2:
         return 0.0
-
     sparsity = 0.0
     m = len(ep_objs_batch[0])
     ep_objs_batch_np = np.array(ep_objs_batch)

@@ -7,8 +7,8 @@ parser.add_argument('--cmorl-ipo', default=False, action='store_true')
 parser.add_argument('--cmorl-cpo', default=False, action='store_true')
 parser.add_argument('--random', default=False, action='store_true')
 parser.add_argument('--num-seeds', type=int, default=6)
-parser.add_argument('--save-dir', type=str, default='./results/Building-9d')
-parser.add_argument('--ref-point', type=float, nargs='+', default=[0., 0., 0., 0., 0., 0., 0., 0., 0.])
+parser.add_argument('--save-dir', type=str, default='./results/Ant-2d')
+parser.add_argument('--ref-point', type=float, nargs='+', default=[-100., -100.])
 args = parser.parse_args()
 
 random.seed(2000)
@@ -23,18 +23,18 @@ for i in range(args.num_seeds):
     
     if test_cmorl_ipo:
         cmd = f'python morl/run.py '\
-            f'--env-name building --obj-num 9 '\
+            f'--env-name mo-ant-2d-v4 '\
             f'--seed {seed} '\
-            f'--num-time-steps 2500000 '\
-            f'--num-init-steps 1500000 '\
-            f'--ref-point 0 0 0 0 0 0 0 0 0 '\
-            f'--min-weight 0.0 '\
-            f'--max-weight 1.0 '\
-            f'--delta-weight 1 '\
-            f'--eval-delta-weight 0.5 '\
+            f'--num-time-steps 1500000 '\
+            f'--num-init-steps 1000000 '\
+            f'--ref-point -100 -100 '\
+            f'--min-weight 0 '\
+            f'--max-weight 1 '\
+            f'--delta-weight 0.5 '\
+            f'--eval-delta-weight 0.01 '\
             f'--eval-num 10 '\
-            f'--gamma 1.0 '\
-            f'--num-select 6 '\
+            f'--eval-gamma 0.99 '\
+            f'--num-select 5 '\
             f'--update-method cmorl-ipo '\
             f'--obj-rms '\
             f'--ob-rms '\
@@ -49,16 +49,16 @@ for i in range(args.num_seeds):
 
     if test_cmorl_cpo:
         cmd = f'python morl/run.py '\
-            f'--env-name mo-hopper-v4 --obj-num 3 '\
+            f'--env-name mo-ant-2d-v4 '\
             f'--seed {seed} '\
-            f'--num-time-steps 2500000 '\
-            f'--num-init-steps 1000000 '\
-            f'--ref-point 0 0 0 0 0 0 0 0 0 '\
+            f'--num-time-steps 1500000 '\
+            f'--num-init-steps 1200000 '\
+            f'--ref-point -100 -100 '\
             f'--min-weight 0.0 '\
             f'--max-weight 1.0 '\
-            f'--delta-weight 0.25 '\
+            f'--delta-weight 0.5 '\
             f'--eval-num 1 '\
-            f'--num-select 9 '\
+            f'--num-select 5 '\
             f'--update-method cmorl-cpo '\
             f'--obj-rms '\
             f'--ob-rms '\

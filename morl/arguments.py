@@ -59,7 +59,7 @@ def get_parser():
         help='which type of method to select the tasks in the population [prediction-guided, ra, pfa, moead, random]')
     parser.add_argument('--pbuffer-num',
         type=int,
-        default=100,
+        default=200,
         help='number of performance buffers')
     parser.add_argument('--pbuffer-size',
         type=int,
@@ -131,9 +131,18 @@ def get_parser():
         type=float,
         help='log barrier coefficient')
     parser.add_argument('--policy-buffer',
-        default=100,
+        default=200,
         type=int,
         help='policy buffer size')
+    parser.add_argument('--eval-gamma',
+        type=float,
+        default=0.99,
+        help='discount factor for rewards in evaluation(default: 0.99)')
+    parser.add_argument(
+        '--rl-eval-interval',
+        type=int,
+        default=10,
+        help='RL evaluation interval, one evaluation per n updates')
 
     # PPO parameters
     parser.add_argument(

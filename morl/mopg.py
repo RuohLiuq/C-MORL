@@ -59,7 +59,7 @@ def evaluation(args, sample):
                 done = terminated or truncated
                 info['obj'] = reward
                 objs += gamma * info['obj']
-                gamma *= args.gamma
+                gamma *= args.eval_gamma
     eval_env.close()
     objs /= args.eval_num
     return objs
@@ -169,21 +169,18 @@ def MOPG_worker(args, task_id, task, device, iteration, num_updates, start_time,
         env_params['obj_rms'] = deepcopy(envs.obj_rms) if envs.obj_rms is not None else None
 
         # evaluate new sample
-        sample = Sample(env_params, deepcopy(actor_critic), deepcopy(agent))
-        objs = evaluation(args, sample)
-        sample.objs = objs
-        offspring_batch.append(sample)
+        if (j + 1) % args.rl_eval_interval == 0 or j == final_iter - 1:
+            sample = Sample(env_params, deepcopy(actor_critic), deepcopy(agent))
+            objs = evaluation(args, sample)
+            sample.objs = objs
+            offspring_batch.append(sample)
             
-        # put results back every update_iter iterations, to avoid the multi-processing crash
         if j == final_iter - 1:
             offspring_batch = np.array(offspring_batch)
             results = {}
             results['task_id'] = task_id
             results['offspring_batch'] = offspring_batch
-            if j == final_iter - 1:
-                results['done'] = True
-            else:
-                results['done'] = False
+            results['done'] = True
             results_queue.put(results)
             offspring_batch = []
 

@@ -33,7 +33,9 @@ for i in range(args.num_seeds):
             f'--delta-weight 0.5 '\
             f'--eval-delta-weight 0.5 '\
             f'--eval-num 10 '\
-            f'--gamma 0.98 '\
+            f'--eval-gamma 0.98 '\
+            f'--rl-eval-interval 1 '\
+            f'--policy-buffer 200 '\
             f'--num-select 6 '\
             f'--update-method cmorl-ipo '\
             f'--obj-rms '\
