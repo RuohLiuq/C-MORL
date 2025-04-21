@@ -118,7 +118,7 @@ def run(args):
     
     # ----------------------> Save Results <---------------------- #
     # save ep
-    ep_dir = os.path.join(args.save_dir, str(iteration), 'ep')
+    ep_dir = os.path.join(args.save_dir, 'init', 'ep')
     os.makedirs(ep_dir, exist_ok = True)
     with open(os.path.join(ep_dir, 'objs.txt'), 'w') as fp:
         for obj in ep.obj_batch:
