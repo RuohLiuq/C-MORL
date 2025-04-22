@@ -28,9 +28,9 @@ for i in range(args.num_seeds):
             f'--num-time-steps 2000000 '\
             f'--num-init-steps 1500000 '\
             f'--ref-point -100 -100 -100 '\
-            f'--min-weight 0.0 '\
-            f'--max-weight 1.0 '\
-            f'--delta-weight 0.5 '\
+            f'--min-weight 0.2 '\
+            f'--max-weight 0.8 '\
+            f'--delta-weight 0.3 '\
             f'--eval-delta-weight 0.1 '\
             f'--eval-num 10 '\
             f'--eval-gamma 0.99 '\
